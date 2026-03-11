@@ -43,4 +43,13 @@ for label, ticker in ETFS.items():
 
 print("Done!")
 
-print(price_data["ARKK"][["date", "label", "close", "normalised"]].head())
+combined = pd.concat(price_data.values(), ignore_index=True)
+
+@app.route("/api/price_history", methods=["GET"])
+def price_history():
+    data = combined.where(pd.notnull(combined), None)
+    return jsonify(data.to_dict(orient="records"))
+
+if __name__ == "__main__":
+    print("API running at http://localhost:5000")
+    app.run(debug=False, port=5000)
