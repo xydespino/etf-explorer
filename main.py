@@ -117,8 +117,20 @@ print("Done!")
 # NaN values replaced with None so JSON serialization works
 @app.route("/api/price_history", methods=["GET"])
 def price_history():
-    data = combined.where(pd.notnull(combined), None)
-    return jsonify(data.to_dict(orient="records"))
+    data = combined.copy()
+    # Replace all NaN/inf values with None for clean JSON serialization
+    data = data.where(pd.notnull(data), None)
+    data = data.replace([float('inf'), float('-inf')], None)
+    records = data.to_dict(orient="records")
+    # Final safety pass — replace any remaining float NaN
+    import math
+    cleaned = []
+    for row in records:
+        cleaned.append({
+            k: None if isinstance(v, float) and math.isnan(v) else v
+            for k, v in row.items()
+        })
+    return jsonify(cleaned)
 
 # API endpoint: returns 1Y, 3Y, 5Y total returns per ETF
 @app.route("/api/period_returns", methods=["GET"])
