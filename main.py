@@ -83,11 +83,34 @@ def calculate_correlation():
     corr_melted["correlation"] = corr_melted["correlation"].round(4)
     return corr_melted
 
+# Fetches ETF metadata from Yahoo Finance for each ETF
+# Returns key stats: name, AUM, expense ratio, YTD return, 52 week range
+def fetch_etf_info():
+    rows = []
+    for label, ticker in ETFS.items():
+        try:
+            t = yf.Ticker(ticker)
+            # fast_info is more reliable than info on newer Python versions
+            fi = t.fast_info
+            rows.append({
+                "label":        label,
+                "ticker":       ticker,
+                "currency":     fi.get("currency", "N/A"),
+                "52w_high":     fi.get("year_high", None),
+                "52w_low":      fi.get("year_low", None),
+                "aum_billions": round(fi.get("total_assets", 0) / 1e9, 2) if fi.get("total_assets") else None,
+            })
+        except Exception as e:
+            print(f"Could not fetch info for {label}: {e}")
+            rows.append({"label": label, "ticker": ticker})
+    return pd.DataFrame(rows)
+
 period_returns = calculate_period_returns()
 
 # Combine all three ETF DataFrames into one table for the API
 combined = pd.concat(price_data.values(), ignore_index=True)
 correlation = calculate_correlation()
+etf_info = fetch_etf_info()
 print("Done!")
 
 # API endpoint: returns full price history for all ETFs
@@ -107,6 +130,11 @@ def api_period_returns():
 def api_correlation():
     return jsonify(correlation.to_dict(orient="records"))
 
+@app.route("/api/etf_info", methods=["GET"])
+def api_etf_info():
+    data = etf_info.where(pd.notnull(etf_info), None)
+    return jsonify(data.to_dict(orient="records"))
+
 if __name__ == "__main__":
     print("API running at http://localhost:5000")
-    app.run(debug=False, port=5000)
+    app.run(debug=True, port=5000)
