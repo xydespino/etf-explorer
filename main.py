@@ -135,7 +135,15 @@ def price_history():
 # API endpoint: returns 1Y, 3Y, 5Y total returns per ETF
 @app.route("/api/period_returns", methods=["GET"])
 def api_period_returns():
-    return jsonify(period_returns.to_dict(orient="records"))
+    import math
+    records = period_returns.to_dict(orient="records")
+    cleaned = []
+    for row in records:
+        cleaned.append({
+            k: None if isinstance(v, float) and math.isnan(v) else v
+            for k, v in row.items()
+        })
+    return jsonify(cleaned)
 
 # API endpoint: pairwise correlation matrix between ETF daily returns
 @app.route("/api/correlation", methods=["GET"])
