@@ -68,6 +68,21 @@ def calculate_period_returns():
             })
     return pd.DataFrame(rows)
 
+# Calculates pairwise correlation between ETF daily returns
+# Uses long/melted format so Power BI can render it as a heatmap
+def calculate_correlation():
+    # Pull just the daily_return column from each ETF and put side by side
+    returns = pd.DataFrame({
+        label: df.set_index("date")["daily_return"]
+        for label, df in price_data.items()
+    })
+    # .corr() calculates correlation between every column pair
+    corr = returns.corr().reset_index().rename(columns={"index": "etf"})
+    # Melt converts wide matrix into long format: etf, vs_etf, correlation
+    corr_melted = corr.melt(id_vars="etf", var_name="vs_etf", value_name="correlation")
+    corr_melted["correlation"] = corr_melted["correlation"].round(4)
+    return corr_melted
+
 period_returns = calculate_period_returns()
 
 # Combine all three ETF DataFrames into one table for the API
