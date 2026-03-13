@@ -87,7 +87,7 @@ period_returns = calculate_period_returns()
 
 # Combine all three ETF DataFrames into one table for the API
 combined = pd.concat(price_data.values(), ignore_index=True)
-
+correlation = calculate_correlation()
 print("Done!")
 
 # API endpoint: returns full price history for all ETFs
@@ -101,6 +101,11 @@ def price_history():
 @app.route("/api/period_returns", methods=["GET"])
 def api_period_returns():
     return jsonify(period_returns.to_dict(orient="records"))
+
+# API endpoint: pairwise correlation matrix between ETF daily returns
+@app.route("/api/correlation", methods=["GET"])
+def api_correlation():
+    return jsonify(correlation.to_dict(orient="records"))
 
 if __name__ == "__main__":
     print("API running at http://localhost:5000")
