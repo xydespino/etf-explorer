@@ -29,14 +29,27 @@ def fetch_price_history(ticker, days=365*5):
 # - Flattens multi-level column headers from yfinance
 # - Adds daily_return: % change from previous day's close
 # - Adds normalised: growth indexed to 100 from day 1 (for fair comparison)
+# def clean_price_data(df, label):
+#     # Handle both tuple and string column names from yfinance
+#     df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+#     df.columns = [c.lower() for c in df.columns]
+#     df["date"] = df["date"].astype(str)
+#     df["label"] = label
+#     df["daily_return"] = df["close"].pct_change() * 100
+#     df["normalised"] = (df["close"] / df["close"].iloc[0]) * 100
+#     df["rolling_max"] = df["close"].cummax()
+#     df["drawdown"] = ((df["close"] - df["rolling_max"]) / df["rolling_max"]) * 100
+#     return df
+
 def clean_price_data(df, label):
-    df.columns = [col[0] for col in df.columns]
+    df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
     df.columns = [c.lower() for c in df.columns]
+    print(f"{label} after lowercase: {list(df.columns)}")
+    print(f"{label} close tail: {df['close'].tail(3)}")
     df["date"] = df["date"].astype(str)
     df["label"] = label
     df["daily_return"] = df["close"].pct_change() * 100
     df["normalised"] = (df["close"] / df["close"].iloc[0]) * 100
-    # Calculate drawdown — how far is current price from the rolling peak
     df["rolling_max"] = df["close"].cummax()
     df["drawdown"] = ((df["close"] - df["rolling_max"]) / df["rolling_max"]) * 100
     return df
@@ -55,12 +68,13 @@ def calculate_period_returns():
     periods = {"1Y": 365, "3Y": 365*3, "5Y": 365*5}
     rows = []
     for label, df in price_data.items():
-        # End price is always the most recent row
-        end_price = df["close"].iloc[-1]
+        # Drop NaN rows before getting end price — yfinance appends empty rows
+        clean_df = df.dropna(subset=["close"])
+        end_price = float(clean_df["close"].iloc[-1])
         for period_label, days in periods.items():
             cutoff = (datetime.today() - timedelta(days=days)).strftime("%Y-%m-%d")
-            subset = df[df["date"] >= cutoff]
-            start_price = subset["close"].iloc[0]
+            subset = clean_df[clean_df["date"] >= cutoff]
+            start_price = float(subset["close"].iloc[0])
             total_return = ((end_price - start_price) / start_price) * 100
             rows.append({
                 "label": label,
@@ -138,14 +152,19 @@ def price_history():
 # API endpoint: returns 1Y, 3Y, 5Y total returns per ETF
 @app.route("/api/period_returns", methods=["GET"])
 def api_period_returns():
-    import math
     records = period_returns.to_dict(orient="records")
     cleaned = []
     for row in records:
-        cleaned.append({
-            k: None if isinstance(v, float) and math.isnan(v) else v
-            for k, v in row.items()
-        })
+        clean_row = {}
+        for k, v in row.items():
+            if v is None:
+                clean_row[k] = None
+            elif isinstance(v, float):
+                import math
+                clean_row[k] = None if math.isnan(v) or math.isinf(v) else round(v, 4)
+            else:
+                clean_row[k] = v
+        cleaned.append(clean_row)
     return jsonify(cleaned)
 
 # API endpoint: pairwise correlation matrix between ETF daily returns
