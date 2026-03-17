@@ -36,6 +36,9 @@ def clean_price_data(df, label):
     df["label"] = label
     df["daily_return"] = df["close"].pct_change() * 100
     df["normalised"] = (df["close"] / df["close"].iloc[0]) * 100
+    # Calculate drawdown — how far is current price from the rolling peak
+    df["rolling_max"] = df["close"].cummax()
+    df["drawdown"] = ((df["close"] - df["rolling_max"]) / df["rolling_max"]) * 100
     return df
 
 # Fetch and clean data for all three ETFs, store in a dictionary
