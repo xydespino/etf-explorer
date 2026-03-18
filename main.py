@@ -142,12 +142,32 @@ def fetch_holdings():
         columns=["label", "sector", "weight"]
     )
 
+# Fetches top 10 holdings for each ETF
+def fetch_top_holdings():
+    rows = []
+    for label, ticker in ETFS.items():
+        try:
+            t = yf.Ticker(ticker)
+            holdings = t.funds_data.top_holdings
+            holdings = holdings.reset_index()
+            holdings.columns = ["symbol", "company", "weight"]
+            holdings["label"] = label
+            holdings["rank"] = range(1, len(holdings) + 1)
+            holdings["weight"] = (holdings["weight"] * 100).round(2)
+            rows.append(holdings[["label", "rank", "symbol", "company", "weight"]].head(10))
+        except Exception as e:
+            print(f"Could not fetch top holdings for {label}: {e}")
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(
+        columns=["label", "rank", "symbol", "company", "weight"]
+    )
+
 # Combine all three ETF DataFrames into one table for the API
 combined = pd.concat(price_data.values(), ignore_index=True)
 period_returns = calculate_period_returns()
 correlation = calculate_correlation()
 etf_info = fetch_etf_info()
 holdings = fetch_holdings()
+top_holdings = fetch_top_holdings()
 print("Done!")
 
 # API endpoint: returns full price history for all ETFs
@@ -201,6 +221,21 @@ def api_etf_info():
 def api_holdings():
     import math
     records = holdings.to_dict(orient="records")
+    cleaned = []
+    for row in records:
+        clean_row = {}
+        for k, v in row.items():
+            if isinstance(v, float):
+                clean_row[k] = None if math.isnan(v) else round(v, 4)
+            else:
+                clean_row[k] = v
+        cleaned.append(clean_row)
+    return jsonify(cleaned)
+
+@app.route("/api/top_holdings", methods=["GET"])
+def api_top_holdings():
+    import math
+    records = top_holdings.to_dict(orient="records")
     cleaned = []
     for row in records:
         clean_row = {}
